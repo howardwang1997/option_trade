@@ -219,5 +219,6 @@ __marimo__/
 output/
 data/
 charts/
+models/
 .env
 temp/
