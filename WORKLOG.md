@@ -1,5 +1,39 @@
 # WORKLOG
 
+## 2026-05-06
+
+### Phase 4.5: Uncertainty-Gated Options Strategy (Completed)
+
+**`models/uncertainty_strategy.py`**
+- Per-ticker LightGBM ensemble (5 seeds) predicting 3-class direction (down/flat/up) from 76 features
+- Uncertainty = mean std of predicted probabilities across ensemble
+- Confidence = max probability from ensemble mean
+- Only trade when uncertainty ≤ threshold AND confidence ≥ threshold (per-ticker tuning)
+
+**Direction Prediction Results (2025-2026, high-confidence only)**
+
+| Ticker | Trades | Dir Acc | PnL Acc | Avg Move |
+|--------|--------|---------|---------|----------|
+| GOOG | 23 | **73%** | 65% | +1.45% |
+| NVDA | 47 | 62% | 64% | +1.61% |
+| AAPL | 28 | 57% | 57% | +0.69% |
+| AMZN | 25 | 56% | 60% | +1.54% |
+
+**Debit Spread Results (2025-2026, uncertainty-gated)**
+
+| Ticker | Trades | Avg Return | Win Rate | Sharpe | Total PnL |
+|--------|--------|-----------|----------|--------|-----------|
+| **GOOG** | 23 | **+15.7%** | 65% | **+1.22** | **+547** |
+| **AMZN** | 25 | **+19.3%** | 60% | **+0.99** | **+365** |
+| **NVDA** | 47 | **+18.0%** | 57% | **+0.72** | **+376** |
+| **SPY** | 76 | **+7.1%** | 51% | **+0.37** | **+954** |
+| GLD | 11 | -6.3% | 45% | +0.26 | +80 |
+| GOOGL | 31 | -24.4% | 42% | -2.16 | -1191 |
+| MSFT | 38 | -5.4% | 55% | -0.67 | -827 |
+| QQQ | 41 | -9.7% | 54% | -0.85 | -1323 |
+
+**Key Finding**: Uncertainty gating significantly improves results. GOOG/AMZN/NVDA/SPY debit spreads are profitable with positive Sharpe. GOOGL/QQQ/MSFT still lose — model confidence doesn't translate to edge for these tickers.
+
 ## 2026-05-05
 
 ### Phase 4: Multi-Factor Weekly Options System (Completed)

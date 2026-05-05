@@ -29,6 +29,8 @@ class WeeklyConfig:
     use_any_model: bool = True
     position_pct: float = 1.0
     tickers: list[str] | None = None
+    trade_start: str | None = None
+    trade_end: str | None = None
     train_end: str = "2019-12-31"
     val_end: str = "2022-12-31"
 
@@ -313,6 +315,12 @@ def run_backtest(config: WeeklyConfig | None = None, verbose: bool = True) -> di
 
     weekly = weekly.groupby(["ticker", "expiration"]).last().reset_index()
     weekly = weekly.sort_values(["ticker", "expiration"]).reset_index(drop=True)
+
+    if config.trade_start:
+        weekly = weekly[weekly["quote_date"] >= config.trade_start]
+    if config.trade_end:
+        weekly = weekly[weekly["quote_date"] <= config.trade_end]
+    weekly = weekly.reset_index(drop=True)
 
     if verbose:
         print(f"Generated {len(weekly)} potential weekly trades")
