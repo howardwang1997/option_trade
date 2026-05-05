@@ -224,6 +224,53 @@ Win rate improves (46.7% vs 34.2%) but PnL is slightly worse due to more frequen
 - Use RL to optimize strike selection for options strategies (iron condor, butterfly)
 - Continuous action space for position sizing
 
+### Phase 4 (Completed)
+
+#### Step 9: `features/advanced_features.py` — Advanced Feature Engineering
+
+Extracted 56 new features from 102.6M raw options contract rows across 9 tickers:
+
+| Category | Features | Description |
+|----------|----------|-------------|
+| GEX + Dealer | 10 | Net gamma exposure, GEX flip point, dealer delta, vega/theta exposure |
+| IV Surface | 12 | IV at fixed deltas, risk reversal, skew, smile, term structure |
+| IV Rank | 2 | Percentile rank and IV rank vs 252-day history |
+| OI Dynamics | 7 | Daily/3-day OI change, concentration change, CPR change |
+| Technicals | 13 | MACD, Bollinger Bands, OBV, multi-period returns |
+| Cross-asset | 2 | 60d beta and correlation to SPY |
+
+Output: `data/features_v2.parquet` — 34,213 rows × 98 columns
+
+#### Step 10: `models/predict.py` — Multi-Model Prediction
+
+Three regression models predicting weekly return magnitude using all 76 features:
+
+| Model | CV MAE | Test Direction Acc | Top Features |
+|-------|--------|--------------------|--------------|
+| LightGBM | 1.20 | 42.4% | price_vs_sma5_pct, vol_ratio_5_20, oi_concentration_change, put_gex |
+| XGBoost | 1.26 | 45.1% | price_vs_sma5_pct, obv_sma20, total_oi, put_gex, iv_put_25d |
+| PyTorch MLP | 1.16 | — | return_10d, return_5d, atr_14, realized_vol_20d |
+
+New GEX/IV features ranked in top 10: put_gex, iv_near_term, atm_gamma, iv_term_structure_slope
+
+#### Step 11: `strategy/weekly_strategy.py` — Weekly Options Strategy
+
+Weekly options: enter Tue/Wed (DTE 3-4), hold to Friday expiry, auto-select strategy type.
+
+**Test Set Results (2023+)**
+
+| Config | Trades | Avg Return | Win Rate | Sharpe |
+|--------|--------|-----------|----------|--------|
+| debit_spread_all | 1850 | -1.84% | 51.7% | -0.49 |
+| credit_spread_all | 1410 | -111.6% | 82.8% | -0.65 |
+| iron_condor_all | 1836 | -29.4% | 45.3% | -1.12 |
+| auto_etf | 276 | -18.3% | 51.1% | -1.22 |
+
+**Conclusion**: All options strategies lose money. The core problem is that short-DTE options
+have large bid-ask spreads relative to expected price moves (1-2%). ML direction predictions
+(42-45% accuracy) aren't sufficient for edge. Stock strategy from Phase 2 remains the only
+profitable approach (test 2023+ Sharpe 1.39).
+
 ## Project Structure
 
 ```
@@ -234,14 +281,19 @@ option_trade/
 │   ├── backtest.py          # Pinning distance analysis (Step 2)
 │   ├── analysis.py          # RF feature importance (Step 3)
 │   └── visualize.py         # Charts (Step 4)
+├── features/
+│   └── advanced_features.py # GEX, IV surface, OI dynamics (Step 9)
 ├── strategy/
 │   ├── signals.py           # Signal generation (Step 5)
-│   └── pinning_strategy.py  # Strategy backtest engine (Step 6)
+│   ├── pinning_strategy.py  # Strategy backtest engine (Step 6)
+│   └── weekly_strategy.py   # Weekly options strategy (Step 11)
+├── models/
+│   └── predict.py           # LightGBM + XGBoost + PyTorch (Step 10)
 ├── rl/
 │   ├── env.py               # Gymnasium RL environment (Step 7)
 │   └── train.py             # PPO training & evaluation (Step 8)
-├── data/                    # Parquet features, signals, results
-├── models/                  # Saved PPO models
+├── data/                    # Parquet features, predictions, results
+├── models/                  # Saved ML/RL models
 ├── output/                  # Raw OHLCV & options parquet
 └── charts/                  # Visualization outputs
 ```
@@ -251,4 +303,5 @@ option_trade/
 - **Python**: 3.11 (conda env: snapshot-pipeline)
 - **GPU**: NVIDIA RTX 2060 SUPER (CUDA 12.5)
 - **PyTorch**: 2.6.0+cu124
+- **ML**: lightgbm 4.6.0, xgboost 3.2.0, shap 0.51.0
 - **RL**: gymnasium 1.2.3, stable-baselines3 2.8.0

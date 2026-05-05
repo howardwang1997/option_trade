@@ -1,5 +1,54 @@
 # WORKLOG
 
+## 2026-05-05
+
+### Phase 4: Multi-Factor Weekly Options System (Completed)
+
+**Step 9: `features/advanced_features.py`**
+- Extracted 56 new features from raw options data (102.6M contract rows across 9 tickers)
+- **GEX + Dealer Positioning** (10 features): net GEX, call/put GEX, GEX flip point, net dealer delta, vega/theta exposure, ATM greeks
+- **IV Surface** (12 features): IV at fixed deltas (10d/25d/50d), risk reversal, IV skew, smile width, term structure
+- **IV Rank** (2 features): percentile rank, IV rank vs 252-day history
+- **OI Dynamics** (7 features): daily/3-day OI change, concentration change, call/put ratio change, volume change
+- **Enhanced Technicals** (13 features): MACD, Bollinger Bands, OBV, intraday range, multi-period returns, volume ratio
+- **Cross-asset** (2 features): 60d beta and correlation to SPY
+- Output: `data/features_v2.parquet` — 34,213 rows × 98 columns (100% coverage for most features)
+
+**Step 10: `models/predict.py`**
+- Three models trained to predict weekly return magnitude (regression):
+  - **LightGBM**: CV MAE=1.20, test dir_acc=42.4%
+  - **XGBoost**: CV MAE=1.26, test dir_acc=45.1%
+  - **PyTorch MLP** [256,128,64]: train MAE=1.16, early stopped at epoch 16
+- All 76 features used (no target leak), NaN filled with 0 for full coverage
+- **Consensus top features across models**: price_vs_sma5_pct, vol_ratio_5_20, return_5d, put_gex, iv_near_term, atm_gamma, oi_concentration_change
+- New GEX/IV features ranked high: put_gex (#9 XGBoost), iv_near_term (#5 LightGBM), atm_gamma (#6 LightGBM)
+- Output: `data/predictions.parquet` (100% coverage), `data/feature_importance.parquet`
+
+**Step 11: `strategy/weekly_strategy.py`**
+- Weekly options strategy: entry Tue/Wed (DTE 3-4), hold to Friday expiry
+- Strategy selection: auto (debit spread / credit spread / iron condor based on GEX + IV rank + direction)
+- 6 configs tested across all 9 tickers
+
+**Test Set Results (2023+)**
+
+| Config | Trades | Avg Return | Win Rate | Sharpe | Profit Factor |
+|--------|--------|-----------|----------|--------|---------------|
+| debit_spread_all | 1850 | -1.84% | 51.7% | -0.49 | 0.84 |
+| credit_spread_all | 1410 | -111.6% | 82.8% | -0.65 | 0.54 |
+| iron_condor_all | 1836 | -29.4% | 45.3% | -1.12 | 0.65 |
+| auto_etf | 276 | -18.3% | 51.1% | -1.22 | 0.60 |
+| auto_all | 785 | -56.1% | 40.8% | -1.59 | 0.52 |
+
+**Key Findings**
+- All options strategies lose money — consistent with Phase 2 findings
+- Credit spreads have 80%+ win rate but losses are catastrophic (unbounded risk)
+- Debit spreads are the "best loser" — limited risk, 51.7% win rate
+- Iron condors centered on pinning target don't work (target is dynamic, not static)
+- ML direction predictions (42-45% accuracy) aren't sufficient for profitable options trading
+- GEX and IV features are informative for prediction but not sufficient for edge
+- The core problem: short DTE options have large bid-ask spreads relative to expected move
+- Stock strategy (Phase 2) remains the only profitable approach (test 2023+ Sharpe 1.39)
+
 ## 2026-05-04
 
 ### Phase 2: Strategy Development & Backtest
